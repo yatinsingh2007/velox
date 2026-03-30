@@ -29,12 +29,13 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req judge.SubmissionRequest
-	if req.TimeLimitMs > 5000 || req.MemoryLimitKb > 512000 {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
-		return
-	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.TimeLimitMs > 5000 || req.MemoryLimitKb > 512000 {
+		http.Error(w, "Invalid request: Limits too high (Max 5s, 512MB)", http.StatusBadRequest)
 		return
 	}
 
