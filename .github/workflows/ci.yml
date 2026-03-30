@@ -24,7 +24,12 @@ jobs:
           working-directory: backend
 
   test:
+    name: Test Execution Engine (${{ matrix.language }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [C, CPP, Java, Node, Python, TS]
     steps:
       - uses: actions/checkout@v4
 
@@ -41,8 +46,8 @@ jobs:
       - name: Install TypeScript
         run: sudo npm install -g typescript
 
-      - name: Run Backend End-to-End Execution Tests
+      - name: Run Backend End-to-End Tests for ${{ matrix.language }}
         working-directory: backend
         run: |
           go mod tidy
-          go test -v -race ./...
+          go test -v -race ./processSubmission -run TestProcessSubmission_${{ matrix.language }}$

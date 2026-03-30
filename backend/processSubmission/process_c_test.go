@@ -38,7 +38,7 @@ int main() { int *p = NULL; *p = 10; return 0; }`,
 		{
 			Name: "C_Runtime_Error_Div0",
 			SourceCode: `#include <stdio.h>
-int main() { int a = 1, b = 0; printf("%d", a/b); return 0; }`,
+int main() { volatile int b = 0; int a = 1 / b; printf("%d", a); return 0; }`,
 			ExpectedState: "Runtime Error",
 		},
 		{
@@ -52,11 +52,13 @@ int main() { while(1) {} return 0; }`,
 			Name: "C_Memory_Limit_Exceeded",
 			SourceCode: `#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 int main() {
     int i;
     for (i = 0; i < 50000; i++) {
         void* ptr = malloc(1024 * 1024); // Allocate many MBs
 		if (ptr == NULL) break;
+		memset(ptr, 1, 1024 * 1024); // Touch memory physical allocation
     }
     return 0;
 }`,
