@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 	"time"
-	
+
 	"github.com/google/uuid"
 	"github.com/rishik92/velox/judge"
 	veloxRedis "github.com/rishik92/velox/shared/redis"
@@ -29,6 +29,10 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req judge.SubmissionRequest
+	if req.TimeLimitMs > 5000 || req.MemoryLimitKb > 512000 {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
