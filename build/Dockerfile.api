@@ -1,0 +1,39 @@
+FROM golang:latest AS builder
+
+# Set the working directory to where the Go code actually lives
+WORKDIR /build/backend
+
+# Copy the mod files first for layer caching
+COPY backend/go.mod backend/go.sum* ./
+RUN go mod download || true
+
+# Copy the rest of the backend source code
+COPY backend/ .
+
+# Build the API binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/api
+
+# Use a minimal runtime image
+FROM debian:bookworm-slim
+
+# Install CA certificates in case the API makes HTTPS requests
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Run as a non-root user
+RUN useradd -m apiuser
+WORKDIR /app
+
+# Copy the compiled binary from the builder
+COPY --from=builder /build/backend/main /app/main
+
+RUN chmod +x /app/main
+
+USER apiuser
+
+# The API runs on 8080
+EXPOSE 8080
+
+ENTRYPOINT ["/app/main"]
