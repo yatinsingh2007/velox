@@ -28,6 +28,9 @@ func Connect() {
 		Addr:     addr,
 		Password: password,
 		DB:       0,
+		PoolSize: 1000,
+		MinIdleConns: 100,
+		PoolTimeout: 2 * time.Second,
 	})
 
 	pong, err := Client.Ping(Ctx).Result()

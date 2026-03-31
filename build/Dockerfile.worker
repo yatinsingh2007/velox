@@ -2,17 +2,13 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-sdk
 
 FROM golang:latest AS builder
 
-# Set the working directory to where the Go code actually lives
 WORKDIR /build/backend
 
-# Copy the mod files first for layer caching
 COPY backend/go.mod backend/go.sum* ./
 RUN go mod download || true
 
-# Copy the rest of the backend source code
 COPY backend/ .
 
-# Build from the cmd directory!
 RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/worker
 
 FROM debian:bookworm-slim
@@ -28,7 +24,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && npm install -g typescript
 
-# Include .NET SDK
 COPY --from=dotnet-sdk /usr/share/dotnet /usr/share/dotnet
 RUN ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
 

@@ -3,6 +3,7 @@ package runBatch
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -73,6 +74,7 @@ func RunBatch(execCmd string, execArgs []string, testCases []judge.TestCase, tim
 			continue
 		}
 		if err != nil {
+			fmt.Printf("DEBUG: Command failed for TestCase %d: %v, Stderr: %s\n", tc.TestCaseID, err, stderrStr)
 			results = append(results, judge.TestCaseResult{
 				TestCaseID: tc.TestCaseID, 
 				Status: "Runtime Error",
@@ -110,6 +112,6 @@ func RunBatch(execCmd string, execArgs []string, testCases []judge.TestCase, tim
 		
 		cancel()
 	}
-
 	return results
+
 }
