@@ -72,6 +72,15 @@ func ProcessSubmission(req judge.SubmissionRequest) judge.SubmissionResponse {
 		execArgs = []string{jsPath}
 		filesToClean = append(filesToClean, tsPath, jsPath)
 
+	case "csharp":
+		binaryPath, err := CompileInMemoryCSharp(req.SubmissionID, req.SourceCode)
+		if err != nil {
+			return judge.SubmissionResponse{SubmissionID: req.SubmissionID, OverallState: "Compile Error", CompileError: err.Error()}
+		}
+		execCmd = binaryPath
+		execArgs = []string{}
+		filesToClean = append(filesToClean, binaryPath)
+
 	default:
 		return judge.SubmissionResponse{OverallState: "Unsupported Language"}
 	}
@@ -169,6 +178,43 @@ func CompileInMemoryTS(submissionID, sourceCode string) (string, string, error) 
 		return "", "", fmt.Errorf("compile error: exit status %v, %s", err, string(out))
 	}
 	return jsPath, sourcePath, nil
+}
+
+func CompileInMemoryCSharp(submissionID, sourceCode string) (string, error) {
+	// Create a temp directory for the C# project
+	tempDir := getTempDir()
+	dirPath := fmt.Sprintf("%s/sol_cs_%s", tempDir, submissionID)
+	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		return "", fmt.Errorf("failed to create temp dir: %v", err)
+	}
+
+	// Create a minimal .csproj
+	csprojContent := `<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>`
+	if err := os.WriteFile(dirPath+"/project.csproj", []byte(csprojContent), 0644); err != nil {
+		return "", fmt.Errorf("failed to write csproj: %v", err)
+	}
+
+	// Create Program.cs
+	if err := os.WriteFile(dirPath+"/Program.cs", []byte(sourceCode), 0644); err != nil {
+		return "", fmt.Errorf("failed to write source code: %v", err)
+	}
+
+	// Build the project
+	// -v q for quiet output
+	cmd := exec.Command("dotnet", "build", dirPath, "-c", "Release", "-o", dirPath+"/out", "-v", "q", "--nologo")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("compile error: %v, %s", err, string(out))
+	}
+
+	// The binary name is usually the project name (project)
+	return dirPath + "/out/project", nil
 }
 
 func getTempDir() string {
