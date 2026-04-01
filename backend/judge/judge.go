@@ -25,10 +25,12 @@ type SubmissionResponse struct {
 }
 
 type TestCaseResult struct {
-	TestCaseID   int    `json:"test_case_id"`
-	Status       string `json:"status"` // "Passed", "Wrong Answer", "Runtime Error"
-	ActualOutput string `json:"actual_output,omitempty"`
-	Stderr       string `json:"stderr,omitempty"`
-	TimeMs       int64  `json:"time_ms"`
-	MemoryKb     int64  `json:"memory_kb"`
+	TestCaseID     int    `json:"test_case_id"`
+	Status         string `json:"status"` // "Passed", "Wrong Answer", "Runtime Error"
+	ActualOutput   string `json:"actual_output,omitempty"`
+	Input          string `json:"input,omitempty"`
+	ExpectedOutput string `json:"expected_output,omitempty"`
+	Stderr         string `json:"stderr,omitempty"`
+	TimeMs         int64  `json:"time_ms"`
+	MemoryKb       int64  `json:"memory_kb"`
 }

@@ -42,6 +42,7 @@ type SubmissionResponse struct {
 
 type RequestMetrics struct {
 	ID                int
+	Language          string
 	SubmitDuration    time.Duration
 	TotalWaitDuration time.Duration
 	InternalExecTime  time.Duration
@@ -56,12 +57,17 @@ type RequestMetrics struct {
 
 const (
 	baseURL      = "http://localhost:8080"
-	count        = 100
+	requestsPerLanguage = 20 // Number of concurrent requests per language
 	pollInterval = 500 * time.Millisecond
 )
 
-func main() {
-	payload := SubmissionRequest{
+// Language configurations with appropriate test programs
+var languageConfigs = []struct {
+	Language   string
+	SourceCode string
+	TestCases  []TestCase
+}{
+	{
 		Language: "cpp",
 		SourceCode: `#include <iostream>
 #include <vector>
@@ -89,45 +95,213 @@ int main() {
 			{TestCaseID: 1, Input: "10", ExpectedOutput: "55"},
 			{TestCaseID: 2, Input: "20", ExpectedOutput: "6765"},
 			{TestCaseID: 3, Input: "15", ExpectedOutput: "610"},
-			{TestCaseID: 4, Input: "25", ExpectedOutput: "75025"},
-			{TestCaseID: 5, Input: "30", ExpectedOutput: "832040"},
-			{TestCaseID: 6, Input: "5", ExpectedOutput: "5"},
-			{TestCaseID: 7, Input: "35", ExpectedOutput: "9227465"},
-			{TestCaseID: 8, Input: "12", ExpectedOutput: "144"},
-			{TestCaseID: 9, Input: "18", ExpectedOutput: "2584"},
-			{TestCaseID: 10, Input: "22", ExpectedOutput: "17711"},
 		},
-		TimeLimitMs:   5000,
-		MemoryLimitKb: 262144,
-	}
+	},
+	{
+		Language: "c",
+		SourceCode: `#include <stdio.h>
+#include <stdlib.h>
 
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		fmt.Printf("Error marshaling JSON: %v\n", err)
-		return
-	}
+long long fibonacci(int n) {
+    if (n <= 1) return n;
+    long long *fib = malloc((n + 1) * sizeof(long long));
+    fib[0] = 0;
+    fib[1] = 1;
+    for (int i = 2; i <= n; i++) {
+        fib[i] = fib[i-1] + fib[i-2];
+    }
+    long long result = fib[n];
+    free(fib);
+    return result;
+}
+
+int main() {
+    int n;
+    while(scanf("%d", &n) != EOF) {
+        printf("%lld\n", fibonacci(n));
+    }
+    return 0;
+}`,
+		TestCases: []TestCase{
+			{TestCaseID: 1, Input: "10", ExpectedOutput: "55"},
+			{TestCaseID: 2, Input: "20", ExpectedOutput: "6765"},
+			{TestCaseID: 3, Input: "15", ExpectedOutput: "610"},
+		},
+	},
+	{
+		Language: "java",
+		SourceCode: `import java.util.Scanner;
+
+public class Main {
+    public static long fibonacci(int n) {
+        if (n <= 1) return n;
+        long[] fib = new long[n + 1];
+        fib[0] = 0;
+        fib[1] = 1;
+        for (int i = 2; i <= n; i++) {
+            fib[i] = fib[i-1] + fib[i-2];
+        }
+        return fib[n];
+    }
+    
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        while(sc.hasNextInt()) {
+            int n = sc.nextInt();
+            System.out.println(fibonacci(n));
+        }
+        sc.close();
+    }
+}`,
+		TestCases: []TestCase{
+			{TestCaseID: 1, Input: "10", ExpectedOutput: "55"},
+			{TestCaseID: 2, Input: "20", ExpectedOutput: "6765"},
+			{TestCaseID: 3, Input: "15", ExpectedOutput: "610"},
+		},
+	},
+	{
+		Language: "python",
+		SourceCode: `def fibonacci(n):
+    if n <= 1:
+        return n
+    fib = [0] * (n + 1)
+    fib[1] = 1
+    for i in range(2, n + 1):
+        fib[i] = fib[i-1] + fib[i-2]
+    return fib[n]
+
+import sys
+for line in sys.stdin:
+    n = int(line.strip())
+    print(fibonacci(n))`,
+		TestCases: []TestCase{
+			{TestCaseID: 1, Input: "10", ExpectedOutput: "55"},
+			{TestCaseID: 2, Input: "20", ExpectedOutput: "6765"},
+			{TestCaseID: 3, Input: "15", ExpectedOutput: "610"},
+		},
+	},
+	{
+		Language: "node",
+		SourceCode: `const readline = require('readline');
+
+function fibonacci(n) {
+    if (n <= 1) return n;
+    const fib = new Array(n + 1);
+    fib[0] = 0;
+    fib[1] = 1;
+    for (let i = 2; i <= n; i++) {
+        fib[i] = fib[i-1] + fib[i-2];
+    }
+    return fib[n];
+}
+
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: false
+});
+
+rl.on('line', (line) => {
+    const n = parseInt(line);
+    console.log(fibonacci(n));
+});`,
+		TestCases: []TestCase{
+			{TestCaseID: 1, Input: "10", ExpectedOutput: "55"},
+			{TestCaseID: 2, Input: "20", ExpectedOutput: "6765"},
+			{TestCaseID: 3, Input: "15", ExpectedOutput: "610"},
+		},
+	},
+	{
+		Language: "csharp",
+		SourceCode: `using System;
+
+class Program
+{
+    static long Fibonacci(int n)
+    {
+        if (n <= 1) return n;
+        long[] fib = new long[n + 1];
+        fib[0] = 0;
+        fib[1] = 1;
+        for (int i = 2; i <= n; i++)
+        {
+            fib[i] = fib[i-1] + fib[i-2];
+        }
+        return fib[n];
+    }
+    
+    static void Main()
+    {
+        string line;
+        while ((line = Console.ReadLine()) != null)
+        {
+            int n = int.Parse(line);
+            Console.WriteLine(Fibonacci(n));
+        }
+    }
+}`,
+		TestCases: []TestCase{
+			{TestCaseID: 1, Input: "10", ExpectedOutput: "55"},
+			{TestCaseID: 2, Input: "20", ExpectedOutput: "6765"},
+			{TestCaseID: 3, Input: "15", ExpectedOutput: "610"},
+		},
+	},
+	{
+		Language: "ts",
+		SourceCode: `import * as readline from 'readline';
+
+function fibonacci(n: number): number {
+    if (n <= 1) return n;
+    const fib: number[] = new Array(n + 1);
+    fib[0] = 0;
+    fib[1] = 1;
+    for (let i = 2; i <= n; i++) {
+        fib[i] = fib[i-1] + fib[i-2];
+    }
+    return fib[n];
+}
+
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: false
+});
+
+rl.on('line', (line: string) => {
+    const n = parseInt(line);
+    console.log(fibonacci(n));
+});`,
+		TestCases: []TestCase{
+			{TestCaseID: 1, Input: "10", ExpectedOutput: "55"},
+			{TestCaseID: 2, Input: "20", ExpectedOutput: "6765"},
+			{TestCaseID: 3, Input: "15", ExpectedOutput: "610"},
+		},
+	},
+}
+
+func main() {
+	totalRequests := len(languageConfigs) * requestsPerLanguage
 
 	fmt.Printf("╔════════════════════════════════════════════════════════════════╗\n")
-	fmt.Printf("║           CONCURRENT LOAD TEST WITH POLLING                    ║\n")
+	fmt.Printf("║         MULTI-LANGUAGE CONCURRENT LOAD TEST                    ║\n")
 	fmt.Printf("╚════════════════════════════════════════════════════════════════╝\n\n")
 	fmt.Printf("Configuration:\n")
-	fmt.Printf("  Total Requests:     %d\n", count)
-	fmt.Printf("  Test Cases:         %d\n", len(payload.TestCases))
+	fmt.Printf("  Languages:          %d (%s)\n", len(languageConfigs), getLanguageList())
+	fmt.Printf("  Requests/Language:  %d\n", requestsPerLanguage)
+	fmt.Printf("  Total Requests:     %d\n", totalRequests)
 	fmt.Printf("  Poll Interval:      %v\n", pollInterval)
-	fmt.Printf("  Code Complexity:    Fibonacci (Dynamic Programming)\n")
-	fmt.Printf("  Time Limit:         %dms\n", payload.TimeLimitMs)
-	fmt.Printf("  Memory Limit:       %d KB\n\n", payload.MemoryLimitKb)
+	fmt.Printf("  Test Cases/Request: 3 (Fibonacci)\n\n")
 
 	var wg sync.WaitGroup
 	var successCount int64
 	var failureCount int64
 
-	metrics := make([]RequestMetrics, count)
+	metrics := make([]RequestMetrics, 0, totalRequests)
 	var metricsLock sync.Mutex
 
 	tr := &http.Transport{
-		MaxIdleConns:        count,
-		MaxIdleConnsPerHost: count,
+		MaxIdleConns:        totalRequests,
+		MaxIdleConnsPerHost: totalRequests,
 		IdleConnTimeout:     90 * time.Second,
 	}
 	client := &http.Client{
@@ -138,156 +312,233 @@ int main() {
 	startTime := time.Now()
 	fmt.Printf("Starting load test at %s...\n\n", startTime.Format("15:04:05"))
 
-	for i := range count {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
+	requestID := 0
+	// Launch requests for each language concurrently
+	for _, config := range languageConfigs {
+		for i := 0; i < requestsPerLanguage; i++ {
+			wg.Add(1)
+			requestID++
+			go func(id int, lang string, code string, testCases []TestCase) {
+				defer wg.Done()
 
-			metric := RequestMetrics{ID: id + 1}
-			var subID string
+				payload := SubmissionRequest{
+					Language:      lang,
+					SourceCode:    code,
+					TestCases:     testCases,
+					TimeLimitMs:   5000,
+					MemoryLimitKb: 262144,
+				}
 
-			// 1. Submit
-			submitStart := time.Now()
-			resp, err := client.Post(baseURL+"/submit", "application/json", bytes.NewBuffer(jsonData))
-			metric.SubmitDuration = time.Since(submitStart)
+				metric := executeRequest(client, id, lang, payload)
 
-			if err != nil {
-				atomic.AddInt64(&failureCount, 1)
-				metric.Success = false
-				metric.ErrorMessage = "Submit error: " + err.Error()
-				metricsLock.Lock()
-				metrics[id] = metric
-				metricsLock.Unlock()
-				return
-			}
-
-			// Accept both 200 OK and 202 Accepted for async submissions
-			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-				atomic.AddInt64(&failureCount, 1)
-				metric.Success = false
-				metric.StatusCode = resp.StatusCode
-				body, _ := io.ReadAll(resp.Body)
-				resp.Body.Close()
-				metric.ErrorMessage = fmt.Sprintf("Submit failed with status %d: %s", resp.StatusCode, string(body))
-				metricsLock.Lock()
-				metrics[id] = metric
-				metricsLock.Unlock()
-				return
-			}
-
-			var subResp struct {
-				SubmissionID string `json:"submission_id"`
-			}
-			if err := json.NewDecoder(resp.Body).Decode(&subResp); err != nil {
-				atomic.AddInt64(&failureCount, 1)
-				metric.Success = false
-				metric.ErrorMessage = "Failed to decode submit response: " + err.Error()
-				resp.Body.Close()
-				metricsLock.Lock()
-				metrics[id] = metric
-				metricsLock.Unlock()
-				return
-			}
-			resp.Body.Close()
-			subID = subResp.SubmissionID
-			metric.SubmissionID = subID
-
-			// 2. Poll until completion
-			maxPolls := 120 // Safety limit: 120 polls * 500ms = 60 seconds max
-			for metric.PollCount < maxPolls {
-				time.Sleep(pollInterval)
-				metric.PollCount++
-
-				pollReqStart := time.Now()
-				statusResp, err := client.Get(fmt.Sprintf("%s/status?submission_id=%s", baseURL, subID))
-				pollReqDuration := time.Since(pollReqStart)
-				metric.TotalPollTime += pollReqDuration
-
-				if err != nil {
+				if metric.Success {
+					atomic.AddInt64(&successCount, 1)
+				} else {
 					atomic.AddInt64(&failureCount, 1)
-					metric.Success = false
-					metric.ErrorMessage = "Poll error: " + err.Error()
-					metricsLock.Lock()
-					metrics[id] = metric
-					metricsLock.Unlock()
-					return
 				}
 
-				if statusResp.StatusCode != http.StatusOK {
-					atomic.AddInt64(&failureCount, 1)
-					metric.Success = false
-					metric.StatusCode = statusResp.StatusCode
-					body, _ := io.ReadAll(statusResp.Body)
-					statusResp.Body.Close()
-					metric.ErrorMessage = fmt.Sprintf("Poll failed with status %d: %s", statusResp.StatusCode, string(body))
-					metricsLock.Lock()
-					metrics[id] = metric
-					metricsLock.Unlock()
-					return
-				}
-
-				var statusData SubmissionResponse
-				if err := json.NewDecoder(statusResp.Body).Decode(&statusData); err != nil {
-					atomic.AddInt64(&failureCount, 1)
-					metric.Success = false
-					metric.ErrorMessage = "Poll decode error: " + err.Error()
-					statusResp.Body.Close()
-					metricsLock.Lock()
-					metrics[id] = metric
-					metricsLock.Unlock()
-					return
-				}
-				statusResp.Body.Close()
-
-				// Check if still pending
-				if statusData.Status == "pending" {
-					continue
-				}
-
-				// Finished successfully!
-				metric.TotalWaitDuration = time.Since(submitStart)
-				metric.Success = true
-				metric.StatusCode = 200
-
-				var totalExecMs int64
-				for _, res := range statusData.Results {
-					totalExecMs += res.TimeMs
-				}
-				metric.InternalExecTime = time.Duration(totalExecMs) * time.Millisecond
-				metric.OverheadTime = metric.TotalWaitDuration - metric.InternalExecTime
-
-				atomic.AddInt64(&successCount, 1)
 				metricsLock.Lock()
-				metrics[id] = metric
+				metrics = append(metrics, metric)
 				metricsLock.Unlock()
-				return
-			}
-
-			// If we exit the loop, we hit the max poll limit
-			atomic.AddInt64(&failureCount, 1)
-			metric.Success = false
-			metric.ErrorMessage = fmt.Sprintf("Exceeded max polls (%d), submission may still be pending", maxPolls)
-			metricsLock.Lock()
-			metrics[id] = metric
-			metricsLock.Unlock()
-		}(i)
+			}(requestID, config.Language, config.SourceCode, config.TestCases)
+		}
 	}
 
 	wg.Wait()
 	totalWallTime := time.Since(startTime)
 
-	// Calculate comprehensive statistics
+	// Calculate and print comprehensive statistics
 	printDetailedResults(metrics, successCount, failureCount, totalWallTime)
 }
 
+func executeRequest(client *http.Client, id int, language string, payload SubmissionRequest) RequestMetrics {
+	metric := RequestMetrics{
+		ID:       id,
+		Language: language,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		metric.Success = false
+		metric.ErrorMessage = "JSON marshal error: " + err.Error()
+		return metric
+	}
+
+	// 1. Submit
+	submitStart := time.Now()
+	resp, err := client.Post(baseURL+"/submit", "application/json", bytes.NewBuffer(jsonData))
+	metric.SubmitDuration = time.Since(submitStart)
+
+	if err != nil {
+		metric.Success = false
+		metric.ErrorMessage = "Submit error: " + err.Error()
+		return metric
+	}
+
+	// Accept both 200 OK and 202 Accepted for async submissions
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		metric.Success = false
+		metric.StatusCode = resp.StatusCode
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		metric.ErrorMessage = fmt.Sprintf("Submit failed with status %d: %s", resp.StatusCode, string(body))
+		return metric
+	}
+
+	var subResp struct {
+		SubmissionID string `json:"submission_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&subResp); err != nil {
+		metric.Success = false
+		metric.ErrorMessage = "Failed to decode submit response: " + err.Error()
+		resp.Body.Close()
+		return metric
+	}
+	resp.Body.Close()
+	metric.SubmissionID = subResp.SubmissionID
+
+	// 2. Poll until completion
+	maxPolls := 120 // Safety limit: 120 polls * 500ms = 60 seconds max
+	for metric.PollCount < maxPolls {
+		time.Sleep(pollInterval)
+		metric.PollCount++
+
+		pollReqStart := time.Now()
+		statusResp, err := client.Get(fmt.Sprintf("%s/status?submission_id=%s", baseURL, metric.SubmissionID))
+		pollReqDuration := time.Since(pollReqStart)
+		metric.TotalPollTime += pollReqDuration
+
+		if err != nil {
+			metric.Success = false
+			metric.ErrorMessage = "Poll error: " + err.Error()
+			return metric
+		}
+
+		if statusResp.StatusCode != http.StatusOK {
+			metric.Success = false
+			metric.StatusCode = statusResp.StatusCode
+			body, _ := io.ReadAll(statusResp.Body)
+			statusResp.Body.Close()
+			metric.ErrorMessage = fmt.Sprintf("Poll failed with status %d: %s", statusResp.StatusCode, string(body))
+			return metric
+		}
+
+		var statusData SubmissionResponse
+		if err := json.NewDecoder(statusResp.Body).Decode(&statusData); err != nil {
+			metric.Success = false
+			metric.ErrorMessage = "Poll decode error: " + err.Error()
+			statusResp.Body.Close()
+			return metric
+		}
+		statusResp.Body.Close()
+
+		// Check if still pending
+		if statusData.Status == "pending" {
+			continue
+		}
+
+		// Finished successfully!
+		metric.TotalWaitDuration = time.Since(submitStart)
+		metric.Success = true
+		metric.StatusCode = 200
+
+		var totalExecMs int64
+		for _, res := range statusData.Results {
+			totalExecMs += res.TimeMs
+		}
+		metric.InternalExecTime = time.Duration(totalExecMs) * time.Millisecond
+		metric.OverheadTime = metric.TotalWaitDuration - metric.InternalExecTime
+
+		return metric
+	}
+
+	// If we exit the loop, we hit the max poll limit
+	metric.Success = false
+	metric.ErrorMessage = fmt.Sprintf("Exceeded max polls (%d), submission may still be pending", maxPolls)
+	return metric
+}
+
+func getLanguageList() string {
+	langs := make([]string, len(languageConfigs))
+	for i, cfg := range languageConfigs {
+		langs[i] = cfg.Language
+	}
+	result := ""
+	for i, lang := range langs {
+		if i > 0 {
+			result += ", "
+		}
+		result += lang
+	}
+	return result
+}
+
 func printDetailedResults(metrics []RequestMetrics, successCount, failureCount int64, totalWallTime time.Duration) {
+	totalCount := len(metrics)
+
+	// Separate metrics by language
+	langMetrics := make(map[string][]RequestMetrics)
+	for _, m := range metrics {
+		langMetrics[m.Language] = append(langMetrics[m.Language], m)
+	}
+
+	fmt.Printf("╔════════════════════════════════════════════════════════════════╗\n")
+	fmt.Printf("║                       TEST RESULTS                             ║\n")
+	fmt.Printf("╚════════════════════════════════════════════════════════════════╝\n\n")
+
+	// Overall Statistics
+	fmt.Printf("┌─ Overall Statistics ────────────────────────────────────────┐\n")
+	fmt.Printf("│ Total Requests:         %-6d                               │\n", totalCount)
+	fmt.Printf("│ Successful:             %-6d (%.2f%%)                     │\n",
+		successCount, float64(successCount)/float64(totalCount)*100)
+	fmt.Printf("│ Failed:                 %-6d (%.2f%%)                     │\n",
+		failureCount, float64(failureCount)/float64(totalCount)*100)
+	fmt.Printf("│ Total Wall Time:        %-40s │\n", totalWallTime)
+	fmt.Printf("│ Throughput:             %.2f req/sec                        │\n",
+		float64(totalCount)/totalWallTime.Seconds())
+	fmt.Printf("└──────────────────────────────────────────────────────────────┘\n\n")
+
+	// Per-Language Breakdown
+	fmt.Printf("┌─ Per-Language Results ──────────────────────────────────────┐\n")
+	
+	languages := []string{"cpp", "c", "java", "python", "node", "csharp", "ts"}
+	for _, lang := range languages {
+		langMetricsSlice := langMetrics[lang]
+		if len(langMetricsSlice) == 0 {
+			continue
+		}
+
+		successLang := int64(0)
+		failedLang := int64(0)
+		var totalWaitLang []time.Duration
+
+		for _, m := range langMetricsSlice {
+			if m.Success {
+				successLang++
+				totalWaitLang = append(totalWaitLang, m.TotalWaitDuration)
+			} else {
+				failedLang++
+			}
+		}
+
+		avgTime := time.Duration(0)
+		if len(totalWaitLang) > 0 {
+			sort.Slice(totalWaitLang, func(i, j int) bool { return totalWaitLang[i] < totalWaitLang[j] })
+			avgTime = calculateAvg(totalWaitLang)
+		}
+
+		fmt.Printf("│  %-10s  Success: %3d/%3d  Avg Time: %-16s│\n",
+			lang, successLang, len(langMetricsSlice), avgTime)
+	}
+	fmt.Printf("└──────────────────────────────────────────────────────────────┘\n\n")
+
+	// Collect successful metrics for detailed analysis
 	var (
 		submitDurations    []time.Duration
 		totalWaitDurations []time.Duration
 		internalExecTimes  []time.Duration
 		overheadDurations  []time.Duration
 		pollCounts         []int
-		avgPollTimes       []time.Duration
 		totalPollTimes     []time.Duration
 	)
 
@@ -299,10 +550,13 @@ func printDetailedResults(metrics []RequestMetrics, successCount, failureCount i
 			overheadDurations = append(overheadDurations, m.OverheadTime)
 			pollCounts = append(pollCounts, m.PollCount)
 			totalPollTimes = append(totalPollTimes, m.TotalPollTime)
-			if m.PollCount > 0 {
-				avgPollTimes = append(avgPollTimes, m.TotalPollTime/time.Duration(m.PollCount))
-			}
 		}
+	}
+
+	if len(submitDurations) == 0 {
+		fmt.Printf("⚠️  No successful requests to analyze.\n\n")
+		printErrorAnalysis(metrics, failureCount)
+		return
 	}
 
 	sort.Slice(submitDurations, func(i, j int) bool { return submitDurations[i] < submitDurations[j] })
@@ -311,77 +565,13 @@ func printDetailedResults(metrics []RequestMetrics, successCount, failureCount i
 	sort.Slice(overheadDurations, func(i, j int) bool { return overheadDurations[i] < overheadDurations[j] })
 	sort.Slice(pollCounts, func(i, j int) bool { return pollCounts[i] < pollCounts[j] })
 	sort.Slice(totalPollTimes, func(i, j int) bool { return totalPollTimes[i] < totalPollTimes[j] })
-	sort.Slice(avgPollTimes, func(i, j int) bool { return avgPollTimes[i] < avgPollTimes[j] })
-
-	fmt.Printf("╔════════════════════════════════════════════════════════════════╗\n")
-	fmt.Printf("║                       TEST RESULTS                             ║\n")
-	fmt.Printf("╚════════════════════════════════════════════════════════════════╝\n\n")
-
-	// Overall Statistics
-	fmt.Printf("┌─ Overall Statistics ────────────────────────────────────────┐\n")
-	fmt.Printf("│ Total Requests:         %-6d                               │\n", count)
-	fmt.Printf("│ Successful:             %-6d (%.2f%%)                     │\n",
-		successCount, float64(successCount)/float64(count)*100)
-	fmt.Printf("│ Failed:                 %-6d (%.2f%%)                     │\n",
-		failureCount, float64(failureCount)/float64(count)*100)
-	fmt.Printf("│ Total Wall Time:        %-40s │\n", totalWallTime)
-	fmt.Printf("│ Throughput:             %.2f req/sec                        │\n",
-		float64(count)/totalWallTime.Seconds())
-	fmt.Printf("└──────────────────────────────────────────────────────────────┘\n\n")
-
-	if len(submitDurations) == 0 {
-		fmt.Printf("⚠️  No successful requests to analyze.\n\n")
-
-		// Show error breakdown
-		if failureCount > 0 {
-			fmt.Printf("┌─ Error Analysis ─────────────────────────────────────────────┐\n")
-			errorTypes := make(map[string]int)
-			var errorSamples []string
-
-			for _, m := range metrics {
-				if !m.Success && m.ErrorMessage != "" {
-					// Categorize errors
-					errKey := m.ErrorMessage
-					if len(errKey) > 50 {
-						errKey = errKey[:50]
-					}
-					errorTypes[errKey]++
-
-					if len(errorSamples) < 3 {
-						errorSamples = append(errorSamples, m.ErrorMessage)
-					}
-				}
-			}
-
-			fmt.Printf("│ Error Types:                                                 │\n")
-			for errType, count := range errorTypes {
-				if len(errType) > 54 {
-					errType = errType[:51] + "..."
-				}
-				fmt.Printf("│  • %-54s: %2d │\n", errType, count)
-			}
-
-			if len(errorSamples) > 0 {
-				fmt.Printf("│                                                              │\n")
-				fmt.Printf("│ Sample Errors:                                               │\n")
-				for i, msg := range errorSamples {
-					if len(msg) > 56 {
-						msg = msg[:53] + "..."
-					}
-					fmt.Printf("│  %d. %-58s │\n", i+1, msg)
-				}
-			}
-			fmt.Printf("└──────────────────────────────────────────────────────────────┘\n")
-		}
-		return
-	}
 
 	// Submit Phase Statistics
 	fmt.Printf("┌─ Submit Phase (Initial POST /submit) ───────────────────────┐\n")
 	printTimingStats("│ Submit Time", submitDurations)
 	fmt.Printf("└──────────────────────────────────────────────────────────────┘\n\n")
 
-	// Total Wait Time (Submit + Poll until completion)
+	// Total Wait Time
 	fmt.Printf("┌─ Total Wait Time (Submit → Final Status) ───────────────────┐\n")
 	printTimingStats("│ Total Wait", totalWaitDurations)
 	fmt.Printf("└──────────────────────────────────────────────────────────────┘\n\n")
@@ -407,72 +597,11 @@ func printDetailedResults(metrics []RequestMetrics, successCount, failureCount i
 	printIntStats("│ Poll Count", pollCounts)
 	fmt.Printf("│                                                              │\n")
 	printTimingStats("│ Total Poll Time", totalPollTimes)
-	if len(avgPollTimes) > 0 {
-		fmt.Printf("│                                                              │\n")
-		printTimingStats("│ Avg Time/Poll", avgPollTimes)
-	}
 	fmt.Printf("└──────────────────────────────────────────────────────────────┘\n\n")
 
-	// Top Slowest Requests
-	fmt.Printf("┌─ Top 10 Slowest Requests (Total Wait Time) ─────────────────┐\n")
-	slowestCount := min(10, len(totalWaitDurations))
-	for i := len(totalWaitDurations) - 1; i >= len(totalWaitDurations)-slowestCount; i-- {
-		rank := len(totalWaitDurations) - i
-		fmt.Printf("│  #%-2d  %52s │\n", rank, totalWaitDurations[i])
-	}
-	fmt.Printf("└──────────────────────────────────────────────────────────────┘\n\n")
-
-	// Top Fastest Requests
-	fmt.Printf("┌─ Top 10 Fastest Requests (Total Wait Time) ─────────────────┐\n")
-	fastestCount := min(10, len(totalWaitDurations))
-	for i := 0; i < fastestCount; i++ {
-		fmt.Printf("│  #%-2d  %52s │\n", i+1, totalWaitDurations[i])
-	}
-	fmt.Printf("└──────────────────────────────────────────────────────────────┘\n\n")
-
-	// Error Breakdown
+	// Error Breakdown (if any)
 	if failureCount > 0 {
-		fmt.Printf("┌─ Error Breakdown ────────────────────────────────────────────┐\n")
-		errorTypes := make(map[string]int)
-		var errorExamples []string
-
-		for _, m := range metrics {
-			if !m.Success {
-				errType := "Unknown Error"
-				if m.ErrorMessage != "" {
-					if len(m.ErrorMessage) > 30 {
-						errType = m.ErrorMessage[:30]
-					} else {
-						errType = m.ErrorMessage
-					}
-				} else if m.StatusCode > 0 {
-					errType = fmt.Sprintf("HTTP %d", m.StatusCode)
-				}
-				errorTypes[errType]++
-				if len(errorExamples) < 5 {
-					errorExamples = append(errorExamples, m.ErrorMessage)
-				}
-			}
-		}
-
-		for errType, eCount := range errorTypes {
-			if len(errType) > 50 {
-				errType = errType[:47] + "..."
-			}
-			fmt.Printf("│  %-50s: %4d │\n", errType, eCount)
-		}
-
-		if len(errorExamples) > 0 {
-			fmt.Printf("│                                                              │\n")
-			fmt.Printf("│  Sample Error Messages:                                      │\n")
-			for i, msg := range errorExamples {
-				if len(msg) > 56 {
-					msg = msg[:53] + "..."
-				}
-				fmt.Printf("│  %d. %-58s │\n", i+1, msg)
-			}
-		}
-		fmt.Printf("└──────────────────────────────────────────────────────────────┘\n\n")
+		printErrorAnalysis(metrics, failureCount)
 	}
 
 	// Performance Summary
@@ -482,13 +611,50 @@ func printDetailedResults(metrics []RequestMetrics, successCount, failureCount i
 	fmt.Printf("│  Average Overhead:      %-37s │\n", calculateAvg(overheadDurations))
 	fmt.Printf("│  Average Polls:         %-37.2f │\n", calculateAvgInt(pollCounts))
 	fmt.Printf("│                                                              │\n")
+	fmt.Printf("│  Success Rate:          %.2f%%                               │\n",
+		float64(successCount)/float64(totalCount)*100)
+	fmt.Printf("└──────────────────────────────────────────────────────────────┘\n")
+}
 
-	if len(totalWaitDurations) > 0 {
-		successRate := float64(len(totalWaitDurations)) / float64(count) * 100
-		fmt.Printf("│  Success Rate:          %.2f%%                               │\n", successRate)
+func printErrorAnalysis(metrics []RequestMetrics, failureCount int64) {
+	fmt.Printf("┌─ Error Analysis ─────────────────────────────────────────────┐\n")
+	
+	errorsByLang := make(map[string]int)
+	errorTypes := make(map[string]int)
+	var errorSamples []string
+
+	for _, m := range metrics {
+		if !m.Success {
+			errorsByLang[m.Language]++
+			
+			errKey := m.ErrorMessage
+			if len(errKey) > 50 {
+				errKey = errKey[:50]
+			}
+			errorTypes[errKey]++
+
+			if len(errorSamples) < 3 {
+				errorSamples = append(errorSamples, fmt.Sprintf("[%s] %s", m.Language, m.ErrorMessage))
+			}
+		}
 	}
 
-	fmt.Printf("└──────────────────────────────────────────────────────────────┘\n")
+	fmt.Printf("│ Errors by Language:                                          │\n")
+	for lang, count := range errorsByLang {
+		fmt.Printf("│  • %-10s: %4d errors                                  │\n", lang, count)
+	}
+
+	if len(errorSamples) > 0 {
+		fmt.Printf("│                                                              │\n")
+		fmt.Printf("│ Sample Errors:                                               │\n")
+		for i, msg := range errorSamples {
+			if len(msg) > 56 {
+				msg = msg[:53] + "..."
+			}
+			fmt.Printf("│  %d. %-58s │\n", i+1, msg)
+		}
+	}
+	fmt.Printf("└──────────────────────────────────────────────────────────────┘\n\n")
 }
 
 func printTimingStats(label string, durations []time.Duration) {
