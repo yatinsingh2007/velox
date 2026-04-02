@@ -14,7 +14,7 @@ Core Go application logic.
   - **`api/`**: Entry point for the HTTP server. Handles `/submit` and `/status` endpoints.
   - **`worker/`**: Entry point for the background worker. Continuously polls Redis for new submissions.
 - **`judge/`**: Defines the data models (`judje.go`) for requests and responses used across the system.
-- **`processSubmission/`**: The language orchestrator. Handles compilation (for C, C++, Java, TS) and script preparation (for Python, Node).
+- **`processSubmission/`**: The language orchestrator. Handles compilation (for C, C#, C++, Java, TS) and script preparation (for Python, Node).
 - **`runBatch/`**: The execution engine. Runs binaries/scripts in a controlled environment, pipes input, and captures results, Time (ms), and Memory (KB).
 - **`shared/redis/`**: Basic Redis wrapper for pushing/popping submissions and results.
 
@@ -40,6 +40,7 @@ Orchestrates the `api`, `worker`, and `redis` services into a single local envir
   - C (GCC 12+)
   - C++ (G++ 12+)
   - Java (OpenJDK 17)
+  - C#
   - Python (3.x)
   - Node.js
   - TypeScript
