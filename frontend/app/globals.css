@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+:root {
+  /* Minimalist Brutalism Palette */
+  --background: #000000; /* Pure black */
+  --foreground: #ffffff; /* Pure white text */
+  
+  /* Single vibrant accent */
+  --velox-primary: #ff5a00; /* Hot Orange */
+  --velox-primary-hover: #e04e00; 
+  --velox-secondary: #facc15; /* Warning Yellow */
+  --velox-surface: #0a0a0a; /* Deepest grey for cards */
+  --velox-border: #333333; /* High contrast hard border */
+  --velox-success: #22c55e; /* Standard green */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--velox-primary);
+  --color-primary-hover: var(--velox-primary-hover);
+  --color-secondary: var(--velox-secondary);
+  --color-surface: var(--velox-surface);
+  --color-border: var(--velox-border);
+  --color-success: var(--velox-success);
+
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Base utility for sleek SaaS card styling (glows, no hard shadows) */
+.dev-card {
+  background-color: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.05); /* Extremely subtle border */
+  border-radius: 1rem; /* rounded-2xl */
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.8); /* Deep soft shadow */
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle inner top-highlight for glass-like depth */
+.dev-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  z-index: 10;
+}
+
+.dev-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 90, 0, 0.3); /* Soft primary border on hover */
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.8), 0 0 20px 0 rgba(255, 90, 0, 0.1);
+}
+
+@keyframes fill-bar {
+  0% { transform: scaleX(0); }
+  10% { transform: scaleX(0.1); }
+  40% { transform: scaleX(0.3); }
+  80% { transform: scaleX(0.7); }
+  100% { transform: scaleX(1); }
+}
+
+@keyframes smooth-fill-bar {
+  0% { transform: scaleX(0); }
+  100% { transform: scaleX(1); }
+}
+
+@keyframes ping-glow {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+.animate-fill-slow {
+  transform-origin: left;
+  animation: fill-bar 3s ease-in-out infinite;
+}
+
+.animate-fill-fast {
+  transform-origin: left;
+  animation: smooth-fill-bar 0.3s ease-out forwards infinite alternate;
+}

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 28 28">
+  <g transform="skewX(-12) translate(2, 0)">
+    <path d="M4.5 4L10.5 19h3.5L8 4H4.5z" fill="#ff5a00" />
+    <path d="M12.5 4L18.5 19h3.5L16 4h-3.5z" fill="#ff5a00" opacity="0.4" />
+  </g>
+</svg>
